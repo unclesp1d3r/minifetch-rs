@@ -25,10 +25,22 @@ fn main() {
     }
 }
 
+/// Minimum hostname length (in characters) before figlet rendering kicks
+/// in. Below this threshold the hostname is printed as bold styled text,
+/// which is both faster (figlet parsing takes a few ms per run) and
+/// visually cleaner for short hostnames that figlet would otherwise
+/// scatter across a line with lots of empty space.
+const FIGLET_MIN_HOSTNAME_LEN: usize = 12;
+
 /// Render a figlet banner for a hostname, falling back to the plain
 /// hostname if the embedded font fails to load or the text cannot be
-/// rendered. Never panics.
+/// rendered. For hostnames shorter than [`FIGLET_MIN_HOSTNAME_LEN`] this
+/// short-circuits and returns the hostname unchanged (the print path
+/// will style it bold). Never panics.
 fn render_banner(hostname: &str) -> String {
+    if hostname.chars().count() < FIGLET_MIN_HOSTNAME_LEN {
+        return hostname.to_string();
+    }
     FIGlet::standard()
         .ok()
         .and_then(|font| font.convert(hostname).map(|fig| fig.to_string()))
