@@ -178,36 +178,28 @@ fn run() -> Result<()> {
         }
     }
 
-    // Calculate max width for content lines
-    let mut max_label_width = 0;
-    let mut max_value_width = 0;
-    for (label, value) in &content_lines {
-        let label_width = measure_text_width(label);
-        let value_width = measure_text_width(value);
-        if label_width > max_label_width {
-            max_label_width = label_width;
-        }
-        if value_width > max_value_width {
-            max_value_width = value_width;
-        }
-    }
+    // Compute the box layout once and use it for every row
+    let layout = compute_box_layout(&content_lines);
+    let box_width = layout.box_width;
+    let max_value_width = layout.max_value_width;
+    let inner_width = box_width.saturating_sub(2);
 
-    // Adjust for padding and box characters
-    let box_width = max_label_width + max_value_width + 6; // 2 for padding, 2 for box characters, 2 for ": "
-
-    // Print the box
+    // Print the box top
     term.write_line(&format!(
         "{}{}{}",
         style("┌").black().bright(),
-        "─".repeat(box_width - 2),
+        "─".repeat(inner_width),
         style("┐").black().bright()
     ))?;
 
     // Print user@hostname line (centered)
     let user_hostname_line_content = &content_lines[0].1;
     let user_hostname_width = measure_text_width(user_hostname_line_content);
-    let padding_left = (box_width - user_hostname_width - 2) / 2;
-    let padding_right = box_width - user_hostname_width - 2 - padding_left;
+    let pad_total = box_width
+        .saturating_sub(USER_HOST_OVERHEAD)
+        .saturating_sub(user_hostname_width);
+    let padding_left = pad_total / 2;
+    let padding_right = pad_total - padding_left;
     let centered_user_hostname = format!(
         "{}{}{}",
         " ".repeat(padding_left),
@@ -224,7 +216,7 @@ fn run() -> Result<()> {
     term.write_line(&format!(
         "{}{}{}",
         style("├").black().bright(),
-        "─".repeat(box_width - 2),
+        "─".repeat(inner_width),
         style("┤").black().bright()
     ))?;
 
@@ -245,7 +237,7 @@ fn run() -> Result<()> {
             value.to_string()
         };
         let current_value_width = measure_text_width(&styled_value);
-        let value_padding = max_value_width - current_value_width;
+        let value_padding = max_value_width.saturating_sub(current_value_width);
 
         term.write_line(&format!(
             "{} {}: {}{}{}",
@@ -260,7 +252,7 @@ fn run() -> Result<()> {
     term.write_line(&format!(
         "{}{}{}",
         style("└").black().bright(),
-        "─".repeat(box_width - 2),
+        "─".repeat(inner_width),
         style("┘").black().bright()
     ))?;
     term.write_line(&format!(
@@ -272,18 +264,130 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn render_bar(value: u64, max: u64, length: usize) -> String {
-    let filled_chars = ((value as f64 / max as f64) * length as f64).round() as usize;
-    let empty_chars = length - filled_chars;
-    format!("{}{}", "█".repeat(filled_chars), " ".repeat(empty_chars))
+/// Number of fixed characters in a content row (`"│ label: value│"` minus
+/// the variable label/value/padding portions).
+const BOX_OVERHEAD: usize = 5;
+
+/// Number of fixed characters in the centered user@host row
+/// (`"│ centered │"` minus the variable centered portion).
+const USER_HOST_OVERHEAD: usize = 4;
+
+/// Result of [`compute_box_layout`]: the total box width and the widest
+/// value column observed across the rows.
+struct BoxLayout {
+    box_width: usize,
+    max_value_width: usize,
 }
 
-#[test]
-fn test_width_calculation() {
-    assert_eq!(measure_text_width("Hello"), 5);
-    assert_eq!(measure_text_width("Hello"), 5);
-    assert_eq!(
-        measure_text_width(&format!("{}{}", "█".repeat(5), " ".repeat(5))),
-        10
-    );
+/// Compute the box width and max value column width for a slice of
+/// `(label, value)` rows. The first row is treated as the user@host row
+/// and the box is widened so the centered user@host always fits.
+fn compute_box_layout(lines: &[(String, String)]) -> BoxLayout {
+    let mut max_label = 0usize;
+    let mut max_value = 0usize;
+    for (label, value) in lines {
+        max_label = max_label.max(measure_text_width(label));
+        max_value = max_value.max(measure_text_width(value));
+    }
+    let content_width = max_label + max_value + BOX_OVERHEAD;
+    let user_hostname_width = lines
+        .first()
+        .map(|(_, v)| measure_text_width(v))
+        .unwrap_or(0);
+    let box_width = content_width.max(user_hostname_width + USER_HOST_OVERHEAD);
+    BoxLayout {
+        box_width,
+        max_value_width: max_value,
+    }
+}
+
+/// Render a horizontal bar of `length` cells filled to `value/max`.
+/// Returns an empty string for `length == 0` or `max == 0`. Clamps
+/// `value > max` to a fully filled bar so the function never panics.
+fn render_bar(value: u64, max: u64, length: usize) -> String {
+    if length == 0 || max == 0 {
+        return String::new();
+    }
+    let filled = ((value as f64 / max as f64) * length as f64).round() as usize;
+    let filled = filled.min(length);
+    let empty = length - filled;
+    format!("{}{}", "█".repeat(filled), " ".repeat(empty))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_bar_zero_value() {
+        assert_eq!(render_bar(0, 100, 10), "          ");
+    }
+
+    #[test]
+    fn render_bar_full() {
+        assert_eq!(render_bar(100, 100, 10), "██████████");
+    }
+
+    #[test]
+    fn render_bar_half() {
+        assert_eq!(render_bar(50, 100, 10), "█████     ");
+    }
+
+    #[test]
+    fn render_bar_overflow_clamps() {
+        // Pre-fix this would underflow on `length - filled_chars`.
+        assert_eq!(render_bar(200, 100, 10), "██████████");
+    }
+
+    #[test]
+    fn render_bar_zero_length() {
+        assert_eq!(render_bar(50, 100, 0), "");
+    }
+
+    #[test]
+    fn render_bar_zero_max() {
+        assert_eq!(render_bar(50, 0, 10), "");
+    }
+
+    #[test]
+    fn box_layout_widens_for_long_user_hostname() {
+        // Pre-fix this would underflow on `box_width - user_hostname_width - 2`
+        // when the centered user@host row is wider than the rest of the box.
+        let lines = vec![
+            (
+                "User@Host".to_string(),
+                "verylonguser@verylonghostname.example.com".to_string(),
+            ),
+            ("OS".to_string(), "linux".to_string()),
+        ];
+        let user_host_width = measure_text_width(&lines[0].1);
+        let layout = compute_box_layout(&lines);
+        assert!(
+            layout.box_width >= user_host_width + USER_HOST_OVERHEAD,
+            "box_width {} too narrow for user@host width {}",
+            layout.box_width,
+            user_host_width
+        );
+    }
+
+    #[test]
+    fn box_layout_uses_widest_row_when_content_wins() {
+        let lines = vec![
+            ("User@Host".to_string(), "u@h".to_string()),
+            ("LongLabel".to_string(), "shortvalue".to_string()),
+        ];
+        let layout = compute_box_layout(&lines);
+        // max_label = 9 ("LongLabel"), max_value = 10 ("shortvalue")
+        assert_eq!(layout.box_width, 9 + 10 + BOX_OVERHEAD);
+        assert_eq!(layout.max_value_width, 10);
+    }
+
+    #[test]
+    fn box_layout_empty_input() {
+        let lines: Vec<(String, String)> = vec![];
+        let layout = compute_box_layout(&lines);
+        // No rows: width is just the BOX_OVERHEAD (zero label + zero value).
+        assert_eq!(layout.box_width, BOX_OVERHEAD);
+        assert_eq!(layout.max_value_width, 0);
+    }
 }
