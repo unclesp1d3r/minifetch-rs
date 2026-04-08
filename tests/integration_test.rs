@@ -35,11 +35,18 @@ fn output_contains_expected_sections() -> Result<(), Box<dyn std::error::Error>>
     assert!(output.status.success(), "exit status: {:?}", output.status);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    assert!(stdout.contains("OS:"), "missing OS row in output:\n{stdout}");
+    // Labels inside the box are padded to the widest label with trailing
+    // spaces before the `:` (see `BoxLayout::max_label_width`), so assert
+    // on ` OS ` / ` RAM ` with bracketing spaces rather than `OS:` /
+    // `RAM:`. The " " boundaries also prevent accidentally matching
+    // substrings inside other words ("macOS", "RAM"-in-value, etc.).
+    assert!(stdout.contains(" OS "), "missing OS row in output:\n{stdout}");
     assert!(
-        stdout.contains("RAM:"),
+        stdout.contains(" RAM "),
         "missing RAM row in output:\n{stdout}"
     );
+    // The Date row is the unpadded footer outside the box, so it still
+    // has the classic `Date: ` format with no padding.
     assert!(
         stdout.contains("Date:"),
         "missing Date footer in output:\n{stdout}"
