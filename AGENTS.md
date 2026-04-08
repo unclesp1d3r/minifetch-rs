@@ -1,49 +1,51 @@
-# AI Code Assistant Configuration
+# minifetch-rs — AI Code Assistant Configuration
 
-This file outlines the coding standards, architectural patterns, and project layout preferences for projects developed by this user. It serves as a comprehensive guide for the AI Code Assistant to ensure consistency, maintainability, and adherence to established best practices.
+A small neofetch-style system info CLI written in Rust. Single binary, currently `src/main.rs`. This file documents project conventions for AI code assistants.
+
+## Project Snapshot
+
+- **Type**: CLI tool (system info display)
+- **Crates**: `clap` (derive), `sysinfo`, `colored`, `console`, `figlet-rs`, `chrono`, `humantime`, `users`, `indicatif`, `anyhow`
+- **Dev**: `assert_cmd` for integration tests
+- **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`, `just`
 
 ## 1. Core Philosophy
 
-- **Framework-First Principle**: Always prefer built-in functionality from frameworks like FastAPI and Pydantic over custom or "clever" solutions. Trust the framework's serialization, validation, and dependency injection mechanisms.
-- **Operator-Centric Design**: Projects are built for operators, by operators. This means prioritizing workflows that are efficient, auditable, and functional in contested or airgapped environments.
-- **Structured and Versioned Data**: All data models and interactions should be structured, versioned, and non-destructive. Updates should create new versions rather than overwriting existing data.
+- **Standard-library first**: Prefer std and well-known crates over clever abstractions. This is a small CLI — keep it simple.
+- **Operator-Centric Design**: Built for operators, by operators. Prioritize workflows that are efficient, auditable, and functional in contested or airgapped environments.
+- **No unnecessary dependencies**: Each new crate must justify its weight. Don't pull in async runtimes, serialization frameworks, or service layers this project doesn't need.
 
 ## 2. Project Structure and Layout
 
 A consistent project structure is maintained across all projects, with clear separation of concerns.
 
-### Standard Rust Application Layout
+### Current Layout
 
 ```text
 /
 ├── src/
-│   ├── main.rs          # Entry point, CLI parsing
-│   ├── config.rs        # Configuration loading and management
-│   ├── api.rs           # API client, if applicable
-│   ├── module/
-│   │   ├── mod.rs
-│   │   └── ...
-│   └── utils.rs         # Utility functions
-├── tests/               # Integration tests
-├── benches/             # Benchmarks
-├── examples/            # Usage examples
-├── data/                # Static data
-├── Cargo.toml           # Project dependencies and metadata
-└── README.md            # Project documentation
+│   └── main.rs                  # Entry point, CLI parsing, all logic (split as it grows)
+├── tests/
+│   └── integration_test.rs      # assert_cmd-based CLI tests
+├── Cargo.toml
+├── AI_POLICY.md                 # Required reading — see §7
+└── CLAUDE.md / AGENTS.md        # Agent instructions
 ```
+
+When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`, `render.rs`, etc.) — not by type.
 
 ## 3. Technology Stack
 
-The preferred technology stack is consistent across projects:
-
-| Layer        | Technology                                                | Notes                                             |
-| ------------ | --------------------------------------------------------- | ------------------------------------------------- |
-| **Backend**  | Actix Web, Axum, or Tonic                                 | Async-first design.                               |
-| **Database** | PostgreSQL with `sqlx` or `diesel`                        | Async drivers (`tokio-postgres`).                 |
-| **CLI**      | `clap` + `ratatui` or `dialoguer`                         | For clean, user-friendly command-line interfaces. |
-| **Testing**  | `pytest` (for Python), `cargo test`, `criterion`          | Unit, integration, and benchmark testing.         |
-| **CI/CD**    | GitHub Actions                                            | For automated testing, linting, and releases.     |
-| **Tooling**  | `cargo` for dependency management, `just` for task running. | `clippy` for linting and `rustfmt` for formatting.|
+| Layer       | Technology                                     | Notes                            |
+| ----------- | ---------------------------------------------- | -------------------------------- |
+| **CLI**     | `clap` (derive)                                | Argument parsing                 |
+| **System**  | `sysinfo`, `users`                             | OS / hardware / user info        |
+| **Output**  | `colored`, `console`, `figlet-rs`, `indicatif` | Terminal formatting and progress |
+| **Time**    | `chrono`, `humantime`                          | Timestamps and durations         |
+| **Errors**  | `anyhow`                                       | Application-style error handling |
+| **Testing** | `cargo test` + `assert_cmd`                    | Unit + CLI integration           |
+| **CI/CD**   | GitHub Actions                                 | Lint, test, release              |
+| **Tooling** | `cargo`, `clippy`, `rustfmt`                   |                                  |
 
 ## 4. Coding Standards and Conventions
 
@@ -55,40 +57,56 @@ The preferred technology stack is consistent across projects:
   - **Crates, Modules, Files**: `snake_case`
   - **Structs, Enums, Traits**: `PascalCase`
   - **Functions/Methods, Variables**: `snake_case`
-- **Error Handling**: Errors must be handled using `Result<T, E>`. The `anyhow` and `thiserror` crates will be used for flexible and structured error handling. `panic!` should not be used for recoverable errors.
-- **Concurrency**: Use `tokio` for asynchronous operations. Protect shared state with mutexes from `tokio::sync` where necessary.
-- **Logging**: Use `tracing` for structured logging.
-- **Testing**: Write unit tests for core logic and place them in the same file as the code being tested, inside a `#[cfg(test)]` module. Integration tests go in the `tests/` directory.
+- **Error Handling**: Use `Result<T, E>` with `anyhow::Result` for application errors. No `thiserror` — this project doesn't expose a library API. Never `panic!` on recoverable errors; reserve it for true invariants.
+- **Concurrency**: Synchronous. Do not introduce `tokio` or async without strong justification.
+- **Output**: Use `println!`/`eprintln!` and the `colored`/`console` crates. No `tracing` — this is a one-shot CLI, not a service.
+- **Testing**: Unit tests live in `#[cfg(test)] mod tests` blocks alongside the code. CLI behavior is covered by `assert_cmd` integration tests in `tests/`.
 
 ### Commit Messages
 
-- **Conventional Commits**: All commit messages must adhere to the [Conventional Commits](https://www.conventionalcommits.org) specification.
+- **Conventional Commits**: Adhere to the [Conventional Commits](https://www.conventionalcommits.org) specification.
   - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
-  - **Scopes**: `(auth)`, `(api)`, `(cli)`, `(models)`, etc.
+  - **Scopes** (project-relevant): `(cli)`, `(info)`, `(render)`, `(deps)`.
   - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer.
+- **DCO sign-off**: Use `git commit -s` (legal attestation — only the contributor adds this).
 
 ## 5. Architectural Patterns
 
-- **Service Layer**: Business logic is encapsulated in service functions/classes, keeping API route handlers thin.
-- **Dependency Injection**: Used where appropriate to provide dependencies like database connections and configuration.
-- **Schema-Driven Development**: `serde` is used for serialization and deserialization, ensuring type safety.
+This is a small CLI — keep architecture flat. Avoid premature abstraction:
+
+- **No service layer / DI / repositories.** Functions over indirection.
+- **Group by feature** when splitting modules (e.g. `os_info`, `cpu_info`, `render`), not by type.
+- **Pure functions** for info gathering where possible — easier to test.
 
 ## 6. Testing Strategy
 
-A three-tier testing architecture is employed to ensure quality:
+1. **Unit tests**: `cargo test` — `#[cfg(test)] mod tests` blocks alongside code.
+2. **Integration tests**: `cargo test --test integration_test` — drives the binary via `assert_cmd`.
+3. **Lint/format gate**: `cargo fmt --check && cargo clippy -- -D warnings` before commit.
 
-1. **Unit Tests**: `cargo test` for testing individual components and functions.
-2. **Integration Tests**: `cargo test --test '*' -- --test-threads=1` for testing the integration between different components.
-3. **End-to-End Tests**: `playwright` or similar tools for testing the application as a whole.
+## 7. Common Commands
 
-## 7. Agent Behavior and Prompting
+- `cargo run` — run the CLI
+- `cargo build --release` — release build
+- `cargo test` — all tests
+- `cargo fmt` / `cargo clippy --all-targets -- -D warnings`
 
-- **Clarity and Precision**: The assistant should be direct, professional, and context-aware.
-- **Adherence to Rules**: Strictly follow the defined rules for architecture, code style, and testing.
-- **Code Generation**: Generated code must conform to all established patterns, including type safety, error handling, and documentation.
-- **Tool Usage**: When modifying dependencies, use the appropriate `cargo` commands. When running tasks, use `just`.
-- **Project Context**: Never confuse different projects. Maintain a clear understanding of the distinct goals and technology stacks of each.
+## 8. AI Assistance Policy
 
-# Agent Rules <!-- tessl-managed -->
+**Read `AI_POLICY.md` before contributing.** Summary:
+
+- AI assistance is allowed. AI-generated *media* (images, logos, audio, video) is **not**.
+- **You own every line you submit** and must be able to explain it without asking the AI to explain it back.
+- Disclose AI tool usage in PR descriptions (no fixed format).
+- Unreviewed AI output (hallucinated APIs, ignored conventions) gets closed without review.
+
+## 9. Agent Behavior
+
+- **Clarity and Precision**: Direct, professional, context-aware.
+- **Stay scoped**: One issue per PR. No "while I was here" cleanup.
+- **Match the project**: This is minifetch-rs — a small sync CLI. Don't propose tokio, web frameworks, or DI patterns from other projects.
+- **Cargo for deps**: `cargo add` / `cargo remove`, never hand-edit `Cargo.toml` versions.
+
+## Agent Rules <!-- tessl-managed -->
 
 @.tessl/RULES.md follow the [instructions](.tessl/RULES.md)
