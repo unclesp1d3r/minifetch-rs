@@ -1,0 +1,21 @@
+[package]
+name    = "minifetch-rs"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow    = "1.0.102"
+clap      = { version = "4.6.0", features = [ "derive" ] }
+colored   = "3.1.1"
+console   = "0.16.3"
+sysinfo   = "0.38.4"
+chrono    = "0.4.44"
+figlet-rs = "1.0.0"
+humantime = "2.3.0"
+users     = "0.10.0"
+indicatif = "0.18.4"
+
+[dev-dependencies]
+assert_cmd = "2.2.0"
