@@ -49,36 +49,39 @@ fn run() -> Result<()> {
     let banner = render_banner(&hostname);
     term.write_line(&format!("{}", style(banner).cyan()))?;
 
-    let mut content_lines: Vec<(String, String)> = Vec::new(); // (label, value)
+    let mut content_lines: Vec<InfoLine> = Vec::new();
 
-    // User and Hostname line (unstyled for width calculation)
-    let unstyled_user_hostname = format!("{}@{}", username, hostname);
-    content_lines.push(("User@Host".to_string(), unstyled_user_hostname));
+    // User and Hostname line (first element is always the user@host row,
+    // which is rendered centered in the box)
+    content_lines.push(InfoLine::plain(
+        "User@Host",
+        format!("{username}@{hostname}"),
+    ));
 
     // OS and Kernel
-    content_lines.push((
-        "OS".to_string(),
+    content_lines.push(InfoLine::plain(
+        "OS",
         format!(
             "{} {}",
             System::name().unwrap_or_else(|| "N/A".to_string()),
             System::os_version().unwrap_or_else(|| "N/A".to_string())
         ),
     ));
-    content_lines.push((
-        "Kernel".to_string(),
+    content_lines.push(InfoLine::plain(
+        "Kernel",
         System::kernel_version().unwrap_or_else(|| "N/A".to_string()),
     ));
 
     // Uptime
     let uptime =
         humantime::format_duration(std::time::Duration::from_secs(System::uptime())).to_string();
-    content_lines.push(("Uptime".to_string(), uptime));
+    content_lines.push(InfoLine::plain("Uptime", uptime));
 
     // Logged-in Users
     let users_list = Users::new_with_refreshed_list();
     let users: Vec<String> = users_list.iter().map(|u| u.name().to_string()).collect();
     if !users.is_empty() {
-        content_lines.push(("Users".to_string(), users.join(", ")));
+        content_lines.push(InfoLine::plain("Users", users.join(", ")));
     }
 
     // Load average (replaces the CPU% row, which always read 0 because the
@@ -86,8 +89,8 @@ fn run() -> Result<()> {
     // startup latency in a one-shot CLI)
     let la = System::load_average();
     if la.one > 0.0 || la.five > 0.0 || la.fifteen > 0.0 {
-        content_lines.push((
-            "Load".to_string(),
+        content_lines.push(InfoLine::plain(
+            "Load",
             format!("{:.2} {:.2} {:.2}", la.one, la.five, la.fifteen),
         ));
     }
@@ -96,26 +99,20 @@ fn run() -> Result<()> {
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
     let memory_percentage = (used_memory as f64 / total_memory as f64) * 100.0;
-    content_lines.push((
-        "RAM".to_string(),
-        format!(
-            "{:.2}% {}",
-            memory_percentage,
-            render_bar(memory_percentage as u64, 100, 20)
-        ),
+    content_lines.push(InfoLine::percent(
+        "RAM",
+        memory_percentage,
+        render_bar(memory_percentage as u64, 100, 20),
     ));
 
     let total_swap = sys.total_swap();
     let used_swap = sys.used_swap();
     if total_swap > 0 {
         let swap_percentage = (used_swap as f64 / total_swap as f64) * 100.0;
-        content_lines.push((
-            "Swap".to_string(),
-            format!(
-                "{:.2}% {}",
-                swap_percentage,
-                render_bar(swap_percentage as u64, 100, 20)
-            ),
+        content_lines.push(InfoLine::percent(
+            "Swap",
+            swap_percentage,
+            render_bar(swap_percentage as u64, 100, 20),
         ));
     }
 
@@ -134,13 +131,10 @@ fn run() -> Result<()> {
         if total_space > 0 && available_space <= total_space {
             let used_space = total_space - available_space;
             let disk_percentage = (used_space as f64 / total_space as f64) * 100.0;
-            content_lines.push((
+            content_lines.push(InfoLine::percent(
                 format!("Disk ({})", disk.name().to_string_lossy()),
-                format!(
-                    "{:.2}% {}",
-                    disk_percentage,
-                    render_bar(disk_percentage as u64, 100, 20)
-                ),
+                disk_percentage,
+                render_bar(disk_percentage as u64, 100, 20),
             ));
         }
     }
@@ -150,8 +144,8 @@ fn run() -> Result<()> {
     for (interface_name, data) in networks.iter() {
         // Filter for interfaces with activity
         if data.total_received() > 0 || data.total_transmitted() > 0 {
-            content_lines.push((
-                format!("Net ({})", interface_name),
+            content_lines.push(InfoLine::plain(
+                format!("Net ({interface_name})"),
                 format!(
                     "{} (Rx: {}, Tx: {})",
                     data.mac_address(),
@@ -169,9 +163,9 @@ fn run() -> Result<()> {
         if let Some(temp) = component.temperature() {
             // Filter out unrealistic temperatures and limit the number of displayed sensors
             if temp > 0.0 && temp < 100.0 && temp_count < 5 {
-                content_lines.push((
+                content_lines.push(InfoLine::plain(
                     format!("Temp ({})", component.label()),
-                    format!("{:.1}°C", temp),
+                    format!("{temp:.1}°C"),
                 ));
                 temp_count += 1;
             }
@@ -194,7 +188,7 @@ fn run() -> Result<()> {
     ))?;
 
     // Print user@hostname line (centered)
-    let user_hostname_line_content = &content_lines[0].1;
+    let user_hostname_line_content = &content_lines[0].value;
     let user_hostname_width = measure_text_width(user_hostname_line_content);
     let pad_total = box_width
         .saturating_sub(USER_HOST_OVERHEAD)
@@ -222,31 +216,21 @@ fn run() -> Result<()> {
     ))?;
 
     // Print other content lines (left-aligned)
-    for (label, value) in content_lines.iter().skip(1) {
-        let styled_value = if label.contains("CPU")
-            || label.contains("RAM")
-            || label.contains("Swap")
-            || label.contains("Disk")
-        {
-            let parts: Vec<&str> = value.split(' ').collect();
-            if parts.len() == 2 {
-                format!("{}{}", style(parts[0]).white(), style(parts[1]).green())
-            } else {
-                value.to_string()
-            }
-        } else {
-            value.to_string()
+    for line in content_lines.iter().skip(1) {
+        let label_padding = max_label_width.saturating_sub(measure_text_width(&line.label));
+        let value_padding = max_value_width.saturating_sub(line.value_width());
+
+        let value_rendered = match &line.bar {
+            Some(bar) => format!("{} {}", style(&line.value).white(), style(bar).green()),
+            None => line.value.clone(),
         };
-        let current_value_width = measure_text_width(&styled_value);
-        let value_padding = max_value_width.saturating_sub(current_value_width);
-        let label_padding = max_label_width.saturating_sub(measure_text_width(label));
 
         term.write_line(&format!(
             "{} {}{}: {}{}{}",
             style("│").black().bright(),
-            style(label).cyan().bright(),
+            style(&line.label).cyan().bright(),
             " ".repeat(label_padding),
-            styled_value,
+            value_rendered,
             " ".repeat(value_padding),
             style("│").black().bright()
         ))?;
@@ -275,6 +259,52 @@ const BOX_OVERHEAD: usize = 5;
 /// (`"│ centered │"` minus the variable centered portion).
 const USER_HOST_OVERHEAD: usize = 4;
 
+/// A single row in the info box. Plain rows carry only `value`; percent
+/// rows carry a pre-formatted `value` (e.g. `"45.20%"`) plus a `bar`
+/// string produced by [`render_bar`]. Keeping the bar as structured data
+/// instead of formatting-then-reparsing avoids the classic anti-pattern
+/// where the print loop tries to split a `"45.20% ████"` string back
+/// apart on whitespace (which breaks because `render_bar` emits literal
+/// trailing spaces for empty cells).
+struct InfoLine {
+    label: String,
+    value: String,
+    bar: Option<String>,
+}
+
+impl InfoLine {
+    /// Plain row with no bar (the most common case).
+    fn plain(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            value: value.into(),
+            bar: None,
+        }
+    }
+
+    /// Percent-bar row. `percent` is formatted to two decimals and stored
+    /// as `value`; `bar` is stored verbatim and styled at print time.
+    fn percent(label: impl Into<String>, percent: f64, bar: String) -> Self {
+        Self {
+            label: label.into(),
+            value: format!("{percent:.2}%"),
+            bar: Some(bar),
+        }
+    }
+
+    /// Visible width of the value column, including the space between
+    /// the percent and the bar when a bar is present. Measured in terminal
+    /// cells so `measure_text_width` is used rather than byte length.
+    fn value_width(&self) -> usize {
+        measure_text_width(&self.value)
+            + self
+                .bar
+                .as_ref()
+                .map(|b| 1 + measure_text_width(b))
+                .unwrap_or(0)
+    }
+}
+
 /// Result of [`compute_box_layout`]: total box width plus the widest label
 /// and value columns observed across the rows. The print loop pads both
 /// columns to those widths so the box renders rectangularly.
@@ -284,21 +314,18 @@ struct BoxLayout {
     max_value_width: usize,
 }
 
-/// Compute the box layout for a slice of `(label, value)` rows. The first
-/// row is treated as the user@host row and the box is widened so the
+/// Compute the box layout for a slice of [`InfoLine`] rows. The first row
+/// is treated as the user@host row and the box is widened so the
 /// centered user@host always fits.
-fn compute_box_layout(lines: &[(String, String)]) -> BoxLayout {
+fn compute_box_layout(lines: &[InfoLine]) -> BoxLayout {
     let mut max_label = 0usize;
     let mut max_value = 0usize;
-    for (label, value) in lines {
-        max_label = max_label.max(measure_text_width(label));
-        max_value = max_value.max(measure_text_width(value));
+    for line in lines {
+        max_label = max_label.max(measure_text_width(&line.label));
+        max_value = max_value.max(line.value_width());
     }
     let content_width = max_label + max_value + BOX_OVERHEAD;
-    let user_hostname_width = lines
-        .first()
-        .map(|(_, v)| measure_text_width(v))
-        .unwrap_or(0);
+    let user_hostname_width = lines.first().map(InfoLine::value_width).unwrap_or(0);
     let box_width = content_width.max(user_hostname_width + USER_HOST_OVERHEAD);
     BoxLayout {
         box_width,
@@ -356,17 +383,27 @@ mod tests {
     }
 
     #[test]
+    fn info_line_plain_value_width() {
+        let line = InfoLine::plain("OS", "Darwin 26.4");
+        assert_eq!(line.value_width(), "Darwin 26.4".len());
+    }
+
+    #[test]
+    fn info_line_percent_value_width_includes_bar_and_space() {
+        // "45.20%" = 6 chars, space = 1, "██████" = 6 chars → 13
+        let line = InfoLine::percent("RAM", 45.2, "██████".to_string());
+        assert_eq!(line.value_width(), 6 + 1 + 6);
+    }
+
+    #[test]
     fn box_layout_widens_for_long_user_hostname() {
         // Pre-fix this would underflow on `box_width - user_hostname_width - 2`
         // when the centered user@host row is wider than the rest of the box.
         let lines = vec![
-            (
-                "User@Host".to_string(),
-                "verylonguser@verylonghostname.example.com".to_string(),
-            ),
-            ("OS".to_string(), "linux".to_string()),
+            InfoLine::plain("User@Host", "verylonguser@verylonghostname.example.com"),
+            InfoLine::plain("OS", "linux"),
         ];
-        let user_host_width = measure_text_width(&lines[0].1);
+        let user_host_width = lines[0].value_width();
         let layout = compute_box_layout(&lines);
         assert!(
             layout.box_width >= user_host_width + USER_HOST_OVERHEAD,
@@ -379,8 +416,8 @@ mod tests {
     #[test]
     fn box_layout_uses_widest_row_when_content_wins() {
         let lines = vec![
-            ("User@Host".to_string(), "u@h".to_string()),
-            ("LongLabel".to_string(), "shortvalue".to_string()),
+            InfoLine::plain("User@Host", "u@h"),
+            InfoLine::plain("LongLabel", "shortvalue"),
         ];
         let layout = compute_box_layout(&lines);
         // max_label = 9 ("LongLabel"), max_value = 10 ("shortvalue")
@@ -390,7 +427,7 @@ mod tests {
 
     #[test]
     fn box_layout_empty_input() {
-        let lines: Vec<(String, String)> = vec![];
+        let lines: Vec<InfoLine> = vec![];
         let layout = compute_box_layout(&lines);
         // No rows: width is just the BOX_OVERHEAD (zero label + zero value).
         assert_eq!(layout.box_width, BOX_OVERHEAD);
