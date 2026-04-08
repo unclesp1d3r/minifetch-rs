@@ -5,6 +5,7 @@ use console::{Term, measure_text_width, style};
 use figlet_rs::FIGlet;
 use indicatif::HumanBytes;
 use std::collections::HashSet;
+use std::path::Path;
 use sysinfo::{Components, Disks, Networks, System, Users};
 
 #[derive(Parser)]
@@ -48,7 +49,9 @@ fn render_banner(hostname: &str) -> String {
 }
 
 fn run() -> Result<()> {
-    let _cli = Cli::parse();
+    // Cli exists only so clap handles `--help` / `--version` for us.
+    // The parsed value has no fields, so we don't bind it.
+    Cli::parse();
     let term = Term::stdout();
 
     // Only refresh what we actually read. Building a full System::new_all()
@@ -135,13 +138,14 @@ fn run() -> Result<()> {
 
     // Disk Utilization
     let disks = Disks::new_with_refreshed_list();
-    let mut seen_disks = HashSet::new();
+    let mut seen_disks: HashSet<&Path> = HashSet::new();
     for disk in disks.iter() {
-        let mount_point = disk.mount_point().to_string_lossy().to_string();
-        if seen_disks.contains(&mount_point) {
+        // `HashSet::insert` returns false if the mount point was already
+        // present, so a single call covers both the lookup and the
+        // insert without any cloning.
+        if !seen_disks.insert(disk.mount_point()) {
             continue;
         }
-        seen_disks.insert(mount_point.clone());
 
         let total_space = disk.total_space();
         let available_space = disk.available_space();
