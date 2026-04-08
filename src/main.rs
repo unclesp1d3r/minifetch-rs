@@ -181,6 +181,7 @@ fn run() -> Result<()> {
     // Compute the box layout once and use it for every row
     let layout = compute_box_layout(&content_lines);
     let box_width = layout.box_width;
+    let max_label_width = layout.max_label_width;
     let max_value_width = layout.max_value_width;
     let inner_width = box_width.saturating_sub(2);
 
@@ -238,11 +239,13 @@ fn run() -> Result<()> {
         };
         let current_value_width = measure_text_width(&styled_value);
         let value_padding = max_value_width.saturating_sub(current_value_width);
+        let label_padding = max_label_width.saturating_sub(measure_text_width(label));
 
         term.write_line(&format!(
-            "{} {}: {}{}{}",
+            "{} {}{}: {}{}{}",
             style("│").black().bright(),
             style(label).cyan().bright(),
+            " ".repeat(label_padding),
             styled_value,
             " ".repeat(value_padding),
             style("│").black().bright()
@@ -272,16 +275,18 @@ const BOX_OVERHEAD: usize = 5;
 /// (`"│ centered │"` minus the variable centered portion).
 const USER_HOST_OVERHEAD: usize = 4;
 
-/// Result of [`compute_box_layout`]: the total box width and the widest
-/// value column observed across the rows.
+/// Result of [`compute_box_layout`]: total box width plus the widest label
+/// and value columns observed across the rows. The print loop pads both
+/// columns to those widths so the box renders rectangularly.
 struct BoxLayout {
     box_width: usize,
+    max_label_width: usize,
     max_value_width: usize,
 }
 
-/// Compute the box width and max value column width for a slice of
-/// `(label, value)` rows. The first row is treated as the user@host row
-/// and the box is widened so the centered user@host always fits.
+/// Compute the box layout for a slice of `(label, value)` rows. The first
+/// row is treated as the user@host row and the box is widened so the
+/// centered user@host always fits.
 fn compute_box_layout(lines: &[(String, String)]) -> BoxLayout {
     let mut max_label = 0usize;
     let mut max_value = 0usize;
@@ -297,6 +302,7 @@ fn compute_box_layout(lines: &[(String, String)]) -> BoxLayout {
     let box_width = content_width.max(user_hostname_width + USER_HOST_OVERHEAD);
     BoxLayout {
         box_width,
+        max_label_width: max_label,
         max_value_width: max_value,
     }
 }
