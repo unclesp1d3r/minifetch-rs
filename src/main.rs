@@ -1,3 +1,4 @@
+use anyhow::Result;
 use chrono::Local;
 use clap::Parser;
 use console::{Term, measure_text_width, style};
@@ -11,6 +12,30 @@ use sysinfo::{Components, Disks, Networks, System, Users};
 struct Cli;
 
 fn main() {
+    if let Err(e) = run() {
+        // A closed downstream pipe (e.g. `minifetch-rs | head -1`) is
+        // normal CLI termination, not an error. Exit cleanly with status 0.
+        if let Some(io_err) = e.downcast_ref::<std::io::Error>()
+            && io_err.kind() == std::io::ErrorKind::BrokenPipe
+        {
+            std::process::exit(0);
+        }
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
+}
+
+/// Render a figlet banner for a hostname, falling back to the plain
+/// hostname if the embedded font fails to load or the text cannot be
+/// rendered. Never panics.
+fn render_banner(hostname: &str) -> String {
+    FIGlet::standard()
+        .ok()
+        .and_then(|font| font.convert(hostname).map(|fig| fig.to_string()))
+        .unwrap_or_else(|| hostname.to_string())
+}
+
+fn run() -> Result<()> {
     let _cli = Cli::parse();
     let term = Term::stdout();
 
@@ -20,11 +45,9 @@ fn main() {
     let username = whoami::username().unwrap_or_else(|_| "unknown".to_string());
     let hostname = System::host_name().unwrap_or_else(|| "N/A".to_string());
 
-    // Figlet for hostname
-    let standard_font = FIGlet::standard().unwrap();
-    let figure = standard_font.convert(&hostname);
-    term.write_line(&format!("{}", style(figure.unwrap().to_string()).cyan()))
-        .unwrap();
+    // Figlet for hostname (graceful fallback handled inside render_banner)
+    let banner = render_banner(&hostname);
+    term.write_line(&format!("{}", style(banner).cyan()))?;
 
     let mut content_lines: Vec<(String, String)> = Vec::new(); // (label, value)
 
@@ -53,10 +76,7 @@ fn main() {
 
     // Logged-in Users
     let users_list = Users::new_with_refreshed_list();
-    let users: Vec<String> = users_list
-        .iter()
-        .map(|u| u.name().to_string())
-        .collect();
+    let users: Vec<String> = users_list.iter().map(|u| u.name().to_string()).collect();
     if !users.is_empty() {
         content_lines.push(("Users".to_string(), users.join(", ")));
     }
@@ -181,8 +201,7 @@ fn main() {
         style("┌").black().bright(),
         "─".repeat(box_width - 2),
         style("┐").black().bright()
-    ))
-    .unwrap();
+    ))?;
 
     // Print user@hostname line (centered)
     let user_hostname_line_content = &content_lines[0].1;
@@ -200,16 +219,14 @@ fn main() {
         style("│").black().bright(),
         style(&centered_user_hostname).green(),
         style("│").black().bright()
-    ))
-    .unwrap();
+    ))?;
 
     term.write_line(&format!(
         "{}{}{}",
         style("├").black().bright(),
         "─".repeat(box_width - 2),
         style("┤").black().bright()
-    ))
-    .unwrap();
+    ))?;
 
     // Print other content lines (left-aligned)
     for (label, value) in content_lines.iter().skip(1) {
@@ -237,8 +254,7 @@ fn main() {
             styled_value,
             " ".repeat(value_padding),
             style("│").black().bright()
-        ))
-        .unwrap();
+        ))?;
     }
 
     term.write_line(&format!(
@@ -246,14 +262,14 @@ fn main() {
         style("└").black().bright(),
         "─".repeat(box_width - 2),
         style("┘").black().bright()
-    ))
-    .unwrap();
+    ))?;
     term.write_line(&format!(
         "{}: {}",
         style("Date").green(),
         Local::now().format("%Y-%m-%d %H:%M:%S")
-    ))
-    .unwrap();
+    ))?;
+
+    Ok(())
 }
 
 fn render_bar(value: u64, max: u64, length: usize) -> String {

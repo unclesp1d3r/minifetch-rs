@@ -35,9 +35,13 @@ assert_cmd = "2.2.0"
 unsafe_code = "forbid"
 
 [lints.clippy]
-correctness   = { level = "deny", priority = -1 }
-suspicious    = { level = "warn", priority = -1 }
-pedantic      = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+suspicious  = { level = "warn", priority = -1 }
+# pedantic is intentionally NOT enabled during this cleanup branch.
+# It is bumped to warn (along with nursery + cargo + the unwrap/panic
+# deny family) in the final commit of the cleanup, so the existing
+# stylistic and cast warnings can be cleaned up in their dedicated
+# commits without blocking interim work.
 dbg_macro     = "warn"
 todo          = "warn"
 unimplemented = "warn"
