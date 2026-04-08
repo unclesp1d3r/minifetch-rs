@@ -1,13 +1,21 @@
 [package]
-name    = "minifetch-rs"
+name = "minifetch-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
+authors = ["UncleSp1d3r <unclesp1d3r@evilbitlabs.io>"]
+description = "A small neofetch-style system information CLI"
+license = "Apache-2.0"
+repository = "https://github.com/EvilBit-Labs/minifetch-rs"
+homepage = "https://github.com/EvilBit-Labs/minifetch-rs"
+keywords = ["cli", "neofetch", "system-info", "sysinfo"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow    = "1.0.102"
-clap      = { version = "4.6.0", features = [ "derive" ] }
+clap      = { version = "4.6.0", features = ["derive"] }
 colored   = "3.1.1"
 console   = "0.16.3"
 sysinfo   = "0.38.4"
@@ -19,3 +27,29 @@ indicatif = "0.18.4"
 
 [dev-dependencies]
 assert_cmd = "2.2.0"
+
+# Package lints. Severity is intentionally held at `warn` for the "no panics"
+# family (`unwrap_used`, `panic`, `expect_used`) until all existing panic
+# surfaces are fixed; they are bumped to `deny` in the final commit of this
+# cleanup branch so regressions become compile errors.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+correctness   = { level = "deny", priority = -1 }
+suspicious    = { level = "warn", priority = -1 }
+pedantic      = { level = "warn", priority = -1 }
+dbg_macro     = "warn"
+todo          = "warn"
+unimplemented = "warn"
+
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = true
+
+[profile.dist]
+inherits        = "release"
+lto             = "thin"
+overflow-checks = true
+strip           = true
