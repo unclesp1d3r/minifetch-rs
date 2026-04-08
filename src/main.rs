@@ -51,8 +51,13 @@ fn run() -> Result<()> {
     let _cli = Cli::parse();
     let term = Term::stdout();
 
-    let mut sys = System::new_all();
-    sys.refresh_all();
+    // Only refresh what we actually read. Building a full System::new_all()
+    // would also enumerate the process table, per-core CPU stats, and other
+    // data that minifetch-rs never displays -- a significant chunk of the
+    // startup cost on Linux. Disks, Networks, Components, and Users are
+    // constructed as standalone types further down.
+    let mut sys = System::new();
+    sys.refresh_memory();
 
     let username = whoami::username().unwrap_or_else(|_| "unknown".to_string());
     let hostname = System::host_name().unwrap_or_else(|| "N/A".to_string());
