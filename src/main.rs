@@ -1,11 +1,10 @@
 use chrono::Local;
 use clap::Parser;
-use console::{measure_text_width, style, Term};
-use figlet_rs::FIGfont;
+use console::{Term, measure_text_width, style};
+use figlet_rs::FIGlet;
 use indicatif::HumanBytes;
 use std::collections::HashSet;
-use sysinfo::{ComponentExt, CpuExt, DiskExt, NetworkExt, System, SystemExt, UserExt};
-use users::{get_current_uid, get_user_by_uid};
+use sysinfo::{Components, Disks, Networks, System, Users};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -18,11 +17,11 @@ fn main() {
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    let user = get_user_by_uid(get_current_uid()).expect("No user found for current UID");
-    let hostname = sys.host_name().unwrap_or_else(|| "N/A".to_string());
+    let username = whoami::username().unwrap_or_else(|_| "unknown".to_string());
+    let hostname = System::host_name().unwrap_or_else(|| "N/A".to_string());
 
     // Figlet for hostname
-    let standard_font = FIGfont::standard().unwrap();
+    let standard_font = FIGlet::standard().unwrap();
     let figure = standard_font.convert(&hostname);
     term.write_line(&format!("{}", style(figure.unwrap().to_string()).cyan()))
         .unwrap();
@@ -30,7 +29,7 @@ fn main() {
     let mut content_lines: Vec<(String, String)> = Vec::new(); // (label, value)
 
     // User and Hostname line (unstyled for width calculation)
-    let unstyled_user_hostname = format!("{}@{}", user.name().to_str().unwrap_or("N/A"), hostname);
+    let unstyled_user_hostname = format!("{}@{}", username, hostname);
     content_lines.push(("User@Host".to_string(), unstyled_user_hostname));
 
     // OS and Kernel
@@ -38,36 +37,40 @@ fn main() {
         "OS".to_string(),
         format!(
             "{} {}",
-            sys.name().unwrap_or_else(|| "N/A".to_string()),
-            sys.os_version().unwrap_or_else(|| "N/A".to_string())
+            System::name().unwrap_or_else(|| "N/A".to_string()),
+            System::os_version().unwrap_or_else(|| "N/A".to_string())
         ),
     ));
     content_lines.push((
         "Kernel".to_string(),
-        sys.kernel_version().unwrap_or_else(|| "N/A".to_string()),
+        System::kernel_version().unwrap_or_else(|| "N/A".to_string()),
     ));
 
     // Uptime
     let uptime =
-        humantime::format_duration(std::time::Duration::from_secs(sys.uptime())).to_string();
+        humantime::format_duration(std::time::Duration::from_secs(System::uptime())).to_string();
     content_lines.push(("Uptime".to_string(), uptime));
 
     // Logged-in Users
-    let users: Vec<String> = sys.users().iter().map(|u| u.name().to_string()).collect();
+    let users_list = Users::new_with_refreshed_list();
+    let users: Vec<String> = users_list
+        .iter()
+        .map(|u| u.name().to_string())
+        .collect();
     if !users.is_empty() {
         content_lines.push(("Users".to_string(), users.join(", ")));
     }
 
-    // CPU Utilization
-    let cpu_usage = sys.global_cpu_info().cpu_usage();
-    content_lines.push((
-        "CPU".to_string(),
-        format!(
-            "{:.2}% {}",
-            cpu_usage,
-            render_bar(cpu_usage as u64, 100, 20)
-        ),
-    ));
+    // Load average (replaces the CPU% row, which always read 0 because the
+    // two-sample CPU refresh requires a 200ms sleep that would dominate
+    // startup latency in a one-shot CLI)
+    let la = System::load_average();
+    if la.one > 0.0 || la.five > 0.0 || la.fifteen > 0.0 {
+        content_lines.push((
+            "Load".to_string(),
+            format!("{:.2} {:.2} {:.2}", la.one, la.five, la.fifteen),
+        ));
+    }
 
     // Memory (RAM and Swap)
     let total_memory = sys.total_memory();
@@ -97,8 +100,9 @@ fn main() {
     }
 
     // Disk Utilization
+    let disks = Disks::new_with_refreshed_list();
     let mut seen_disks = HashSet::new();
-    for disk in sys.disks() {
+    for disk in disks.iter() {
         let mount_point = disk.mount_point().to_string_lossy().to_string();
         if seen_disks.contains(&mount_point) {
             continue;
@@ -122,31 +126,35 @@ fn main() {
     }
 
     // Network Interfaces and Statistics
-    for (interface_name, data) in sys.networks() {
+    let networks = Networks::new_with_refreshed_list();
+    for (interface_name, data) in networks.iter() {
         // Filter for interfaces with activity
-        if data.received() > 0 || data.transmitted() > 0 {
+        if data.total_received() > 0 || data.total_transmitted() > 0 {
             content_lines.push((
                 format!("Net ({})", interface_name),
                 format!(
                     "{} (Rx: {}, Tx: {})",
                     data.mac_address(),
-                    HumanBytes(data.received()),
-                    HumanBytes(data.transmitted())
+                    HumanBytes(data.total_received()),
+                    HumanBytes(data.total_transmitted())
                 ),
             ));
         }
     }
 
     // Temperatures
+    let components = Components::new_with_refreshed_list();
     let mut temp_count = 0;
-    for component in sys.components() {
-        // Filter out unrealistic temperatures and limit the number of displayed sensors
-        if component.temperature() > 0.0 && component.temperature() < 100.0 && temp_count < 5 {
-            content_lines.push((
-                format!("Temp ({})", component.label()),
-                format!("{:.1}°C", component.temperature()),
-            ));
-            temp_count += 1;
+    for component in components.iter() {
+        if let Some(temp) = component.temperature() {
+            // Filter out unrealistic temperatures and limit the number of displayed sensors
+            if temp > 0.0 && temp < 100.0 && temp_count < 5 {
+                content_lines.push((
+                    format!("Temp ({})", component.label()),
+                    format!("{:.1}°C", temp),
+                ));
+                temp_count += 1;
+            }
         }
     }
 
