@@ -7,7 +7,7 @@ A small neofetch-style system info CLI written in Rust. Single binary, currently
 - **Type**: CLI tool (system info display)
 - **Crates**: `clap` (derive), `sysinfo`, `colored`, `console`, `figlet-rs`, `chrono`, `humantime`, `users`, `indicatif`, `anyhow`
 - **Dev**: `assert_cmd` for integration tests
-- **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`, `just`
+- **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`
 
 ## 1. Core Philosophy
 
@@ -45,7 +45,7 @@ When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`
 | **Errors**  | `anyhow`                                       | Application-style error handling |
 | **Testing** | `cargo test` + `assert_cmd`                    | Unit + CLI integration           |
 | **CI/CD**   | GitHub Actions                                 | Lint, test, release              |
-| **Tooling** | `cargo`, `clippy`, `rustfmt`                   |                                  |
+| **Tooling** | `cargo`, `clippy`, `rustfmt`, `just`, `mise`   | See `justfile` and `mise.toml`   |
 
 ## 4. Coding Standards and Conventions
 
