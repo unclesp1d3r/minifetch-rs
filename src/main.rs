@@ -1,3 +1,8 @@
+// Tests legitimately use .unwrap()/.expect()/panic!-via-assert, so
+// exempt them from the strict "no panics in production" lints while
+// keeping those lints enforced on the rest of the crate.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic, clippy::expect_used))]
+
 use anyhow::Result;
 use chrono::Local;
 use clap::Parser;

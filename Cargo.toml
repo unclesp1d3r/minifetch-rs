@@ -27,21 +27,27 @@ whoami = "2.1"
 [dev-dependencies]
 assert_cmd = "2.2.0"
 
-# Package lints. Severity is intentionally held at `warn` for the "no panics"
-# family (`unwrap_used`, `panic`, `expect_used`) until all existing panic
-# surfaces are fixed; they are bumped to `deny` in the final commit of this
-# cleanup branch so regressions become compile errors.
+# Package lints. All the "no panics" lints now deny so any future
+# .unwrap()/.expect()/panic! in production code is a compile error,
+# locking in the cleanup from commits 6-15. Tests are exempted via
+# a crate-level #![cfg_attr(test, allow(...))] attribute in main.rs.
 [lints.rust]
 unsafe_code = "forbid"
 
 [lints.clippy]
 correctness = { level = "deny", priority = -1 }
 suspicious  = { level = "warn", priority = -1 }
-# pedantic is intentionally NOT enabled during this cleanup branch.
-# It is bumped to warn (along with nursery + cargo + the unwrap/panic
-# deny family) in the final commit of the cleanup, so the existing
-# stylistic and cast warnings can be cleaned up in their dedicated
-# commits without blocking interim work.
+pedantic    = { level = "warn", priority = -1 }
+nursery     = { level = "warn", priority = -1 }
+cargo       = { level = "warn", priority = -1 }
+
+# "No panics in production" family: deny on main path, allowed in tests
+# via crate-level cfg_attr in src/main.rs.
+unwrap_used = "deny"
+panic       = "deny"
+expect_used = "warn"
+
+# Misc discipline
 dbg_macro     = "warn"
 todo          = "warn"
 unimplemented = "warn"
