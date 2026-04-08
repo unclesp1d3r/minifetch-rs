@@ -59,8 +59,8 @@ fn run() -> Result<()> {
     let mut sys = System::new();
     sys.refresh_memory();
 
-    let username = whoami::username().unwrap_or_else(|_| "unknown".to_string());
-    let hostname = System::host_name().unwrap_or_else(|| "N/A".to_string());
+    let username = sanitize(&whoami::username().unwrap_or_else(|_| "unknown".to_string()));
+    let hostname = sanitize(&System::host_name().unwrap_or_else(|| "N/A".to_string()));
 
     // Figlet for hostname (graceful fallback handled inside render_banner)
     let banner = render_banner(&hostname);
@@ -149,7 +149,7 @@ fn run() -> Result<()> {
             let used_space = total_space - available_space;
             let disk_percentage = (used_space as f64 / total_space as f64) * 100.0;
             content_lines.push(InfoLine::percent(
-                format!("Disk ({})", disk.name().to_string_lossy()),
+                format!("Disk ({})", sanitize(&disk.name().to_string_lossy())),
                 disk_percentage,
                 render_bar(disk_percentage as u64, 100, 20),
             ));
@@ -162,7 +162,7 @@ fn run() -> Result<()> {
         // Filter for interfaces with activity
         if data.total_received() > 0 || data.total_transmitted() > 0 {
             content_lines.push(InfoLine::plain(
-                format!("Net ({interface_name})"),
+                format!("Net ({})", sanitize(interface_name)),
                 format!(
                     "{} (Rx: {}, Tx: {})",
                     data.mac_address(),
@@ -178,10 +178,13 @@ fn run() -> Result<()> {
     let mut temp_count = 0;
     for component in components.iter() {
         if let Some(temp) = component.temperature() {
-            // Filter out unrealistic temperatures and limit the number of displayed sensors
-            if temp > 0.0 && temp < 100.0 && temp_count < 5 {
+            // Filter out unrealistic temperatures and limit the number of
+            // displayed sensors. The upper bound was widened from 100C to
+            // 150C so legitimate hot hardware (Ryzen Tjmax ~95C, NVMe
+            // under sustained load, GPUs) is not silently dropped.
+            if temp > 0.0 && temp < 150.0 && temp_count < 5 {
                 content_lines.push(InfoLine::plain(
-                    format!("Temp ({})", component.label()),
+                    format!("Temp ({})", sanitize(component.label())),
                     format!("{temp:.1}°C"),
                 ));
                 temp_count += 1;
@@ -351,6 +354,16 @@ fn compute_box_layout(lines: &[InfoLine]) -> BoxLayout {
     }
 }
 
+/// Strip ASCII/ANSI control characters from OS-sourced strings before
+/// printing them. The hostname, username, disk labels, network interface
+/// names, and component labels all come from the OS and can contain
+/// control bytes (USB volume labels on macOS are the classic source).
+/// A hostile or careless label could otherwise inject ANSI escape
+/// sequences into minifetch-rs's output.
+fn sanitize(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control() || *c == ' ').collect()
+}
+
 /// Render a horizontal bar of `length` cells filled to `value/max`.
 /// Returns an empty string for `length == 0` or `max == 0`. Clamps
 /// `value > max` to a fully filled bar so the function never panics.
@@ -440,6 +453,21 @@ mod tests {
         // max_label = 9 ("LongLabel"), max_value = 10 ("shortvalue")
         assert_eq!(layout.box_width, 9 + 10 + BOX_OVERHEAD);
         assert_eq!(layout.max_value_width, 10);
+    }
+
+    #[test]
+    fn sanitize_strips_ansi_escapes() {
+        assert_eq!(sanitize("\x1b[31mred\x1b[0m"), "[31mred[0m");
+    }
+
+    #[test]
+    fn sanitize_preserves_spaces_and_printable() {
+        assert_eq!(sanitize("Macintosh HD"), "Macintosh HD");
+    }
+
+    #[test]
+    fn sanitize_strips_newlines_and_tabs() {
+        assert_eq!(sanitize("foo\nbar\tbaz"), "foobarbaz");
     }
 
     #[test]
