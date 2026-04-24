@@ -150,8 +150,8 @@ check: fmt-check lint test-ci
 dev: fmt lint test
 
 # Full local CI parity check — mirrors .github/workflows/ci.yml
-# (quality + test + test-cross-platform + coverage jobs) and adds
-# `audit` since the GitHub workflow does not run cargo-audit yet.
+# (quality + test + test-cross-platform + coverage + msrv jobs) and
+# adds `audit` since the GitHub workflow does not run cargo-audit yet.
 ci-check: fmt-check clippy test-ci build-release coverage audit
 
 # =============================================================================

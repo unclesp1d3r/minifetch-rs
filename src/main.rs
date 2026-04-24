@@ -3,10 +3,11 @@
 // keeping those lints enforced on the rest of the crate.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic, clippy::expect_used))]
 // render_bar and the percentage calculations intentionally cast between
-// u64/usize/f64 when rendering progress bars. Over the narrow ranges
-// involved (0-100 percentages, 0-20 bar cells) none of these casts
-// can lose meaningful precision or data. Allow the family crate-wide
-// so the render code stays readable.
+// u64/usize/f64 when rendering progress bars. The values involved are
+// small integers (percentages are 0..=100; bar-cell counts are small
+// enough to fit comfortably in f64's 52-bit mantissa) so none of these
+// casts can lose meaningful precision or data. Allow the family
+// crate-wide so the render code stays readable.
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -433,7 +434,8 @@ mod tests {
 
     #[test]
     fn render_bar_overflow_clamps() {
-        // Pre-fix this would underflow on `length - filled_chars`.
+        // Regression guard: an earlier implementation underflowed on
+        // `length - filled_chars` when value > max.
         assert_eq!(render_bar(200, 100, 10), "██████████");
     }
 
@@ -462,8 +464,9 @@ mod tests {
 
     #[test]
     fn box_layout_widens_for_long_user_hostname() {
-        // Pre-fix this would underflow on `box_width - user_hostname_width - 2`
-        // when the centered user@host row is wider than the rest of the box.
+        // Regression guard: an earlier implementation underflowed on
+        // `box_width - user_hostname_width - 2` when the centered
+        // user@host row was wider than the rest of the box.
         let lines = vec![
             InfoLine::plain("User@Host", "verylonguser@verylonghostname.example.com"),
             InfoLine::plain("OS", "linux"),

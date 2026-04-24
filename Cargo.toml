@@ -27,10 +27,10 @@ whoami = "2.1"
 [dev-dependencies]
 assert_cmd = "2.2.0"
 
-# Package lints. All the "no panics" lints now deny so any future
-# .unwrap()/.expect()/panic! in production code is a compile error,
-# locking in the cleanup from commits 6-15. Tests are exempted via
-# a crate-level #![cfg_attr(test, allow(...))] attribute in main.rs.
+# Package lints. The "no panics" family denies any future
+# .unwrap()/.expect()/panic! in production code so a regression is a
+# compile error. Tests are exempted via a crate-level
+# #![cfg_attr(test, allow(...))] attribute in main.rs.
 [lints.rust]
 unsafe_code = "forbid"
 
@@ -52,11 +52,12 @@ dbg_macro     = "warn"
 todo          = "warn"
 unimplemented = "warn"
 
-# `cargo` group lints we can't reasonably satisfy in this project yet.
-# multiple_crate_versions fires on the duplicate windows-* crates
-# pulled in transitively by `whoami`; there is nothing to fix in-crate.
-# cargo_common_metadata fires on missing README.md; adding a README
-# is its own follow-up PR.
+# The `cargo` group is enabled above, but two of its lints can't
+# reasonably be satisfied yet:
+# - multiple_crate_versions fires on the duplicate windows-* crates
+#   pulled in transitively by `whoami`; there is nothing to fix in-crate.
+# - cargo_common_metadata fires on missing README.md; adding a README
+#   is its own follow-up PR.
 multiple_crate_versions = "allow"
 cargo_common_metadata   = "allow"
 
