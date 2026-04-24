@@ -6,8 +6,8 @@
 
 set shell := ["bash", "-cu"]
 set windows-shell := ["powershell", "-NoProfile", "-Command"]
-set dotenv-load := true
-set ignore-comments := true
+set dotenv-load
+set ignore-comments
 
 mise_exec := "mise exec --"
 root := justfile_dir()
