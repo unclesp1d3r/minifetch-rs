@@ -10,7 +10,6 @@ set dotenv-load
 set ignore-comments
 
 mise_exec := "mise exec --"
-root := justfile_dir()
 
 # =============================================================================
 # GENERAL
@@ -67,9 +66,9 @@ lint: clippy lint-justfile lint-actions
 clippy:
     @{{ mise_exec }} cargo clippy --all-targets --all-features -- -D warnings
 
-# Validate GitHub Actions workflows
+# Validate GitHub Actions workflows (covers both .yml and .yaml)
 lint-actions:
-    @{{ mise_exec }} actionlint .github/workflows/*.yml
+    @{{ mise_exec }} actionlint .github/workflows/*.y*ml
 
 # Run clippy with automatic fixes
 fix:
@@ -99,7 +98,11 @@ test:
 test-ci:
     @{{ mise_exec }} cargo nextest run --all-features
 
-# Run documentation tests (nextest does not support doctests)
+# Run documentation tests (nextest does not support doctests). This
+# recipe is NOT included in `check` / `dev` / `ci-check` aggregates
+# because minifetch-rs has zero `///` doctest blocks today -- running
+# it would just be a no-op that compiles docs. Re-add it to the
+# aggregates once the crate starts carrying runnable doc examples.
 test-doc:
     @{{ mise_exec }} cargo test --doc
 
@@ -151,8 +154,10 @@ dev: fmt lint test
 
 # Full local CI parity check — mirrors .github/workflows/ci.yml
 # (quality + test + test-cross-platform + coverage + msrv jobs) and
-# adds `audit` since the GitHub workflow does not run cargo-audit yet.
-ci-check: fmt-check clippy test-ci build-release coverage audit
+# adds `audit` + `deny` since the GitHub workflow does not run
+# cargo-audit or cargo-deny yet (both are installed via mise.toml
+# and cheap to run locally before pushing).
+ci-check: fmt-check clippy test-ci build-release coverage audit deny
 
 # =============================================================================
 # MAINTENANCE
