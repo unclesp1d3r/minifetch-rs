@@ -26,6 +26,7 @@ whoami = "2.1"
 
 [dev-dependencies]
 assert_cmd = "2.2.0"
+os_pipe = "1"
 
 # Package lints. The "no panics" family denies any future
 # .unwrap()/.expect()/panic! in production code so a regression is a
