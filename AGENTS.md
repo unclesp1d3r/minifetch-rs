@@ -59,7 +59,7 @@ When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`
   - **Functions/Methods, Variables**: `snake_case`
 - **Error Handling**: Use `Result<T, E>` with `anyhow::Result` for application errors. No `thiserror` — this project doesn't expose a library API. Never `panic!` on recoverable errors; reserve it for true invariants.
 - **Concurrency**: Synchronous. Do not introduce `tokio` or async without strong justification.
-- **Output**: Use `println!`/`eprintln!` and the `console` crate. No `tracing` — this is a one-shot CLI, not a service.
+- **Output**: Use `println!`/`eprintln!` for simple text, `console` for ANSI styling and width-aware measurement, `figlet-rs` for ASCII banners, and `indicatif` for progress bars / byte-size formatting. No `tracing` — this is a one-shot CLI, not a service.
 - **Testing**: Unit tests live in `#[cfg(test)] mod tests` blocks alongside the code. CLI behavior is covered by `assert_cmd` integration tests in `tests/`.
 
 ### Commit Messages
