@@ -1,21 +1,85 @@
 [package]
-name    = "minifetch-rs"
+name = "minifetch-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
+authors = ["UncleSp1d3r <unclesp1d3r@evilbitlabs.io>"]
+description = "A small neofetch-style system information CLI"
+license = "Apache-2.0"
+repository = "https://github.com/EvilBit-Labs/minifetch-rs"
+homepage = "https://github.com/EvilBit-Labs/minifetch-rs"
+keywords = ["cli", "neofetch", "system-info", "sysinfo"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow    = "1.0.102"
-clap      = { version = "4.6.0", features = [ "derive" ] }
-colored   = "3.1.1"
+clap      = { version = "4.6.0", features = ["derive"] }
 console   = "0.16.3"
 sysinfo   = "0.38.4"
 chrono    = "0.4.44"
 figlet-rs = "1.0.0"
 humantime = "2.3.0"
-users     = "0.10.0"
 indicatif = "0.18.4"
+whoami = "2.1"
 
 [dev-dependencies]
 assert_cmd = "2.2.0"
+os_pipe = "1"
+
+# Package lints.
+#
+# `unwrap_used` and `panic` are denied in production code so a regression
+# becomes a compile error. `expect_used` is kept at warn: a well-named
+# `.expect("reason")` carries more context than a bare `.unwrap()` and is
+# occasionally appropriate for true invariants, so warn is the right
+# strength for code review to catch the avoidable cases without blocking
+# the legitimate ones.
+#
+# The `#![cfg_attr(test, allow(...))]` attribute at the top of
+# `src/main.rs` exempts that crate's own `#[cfg(test)]` tests. The
+# integration tests under `tests/*.rs` compile as separate crates and
+# inherit these lints directly; they currently don't use `.unwrap()`
+# or `panic!` in test bodies (they return `Result<(), Box<dyn Error>>`
+# and propagate with `?`), so no additional exemption is needed there.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious  = { level = "warn", priority = -1 }
+pedantic    = { level = "warn", priority = -1 }
+nursery     = { level = "warn", priority = -1 }
+cargo       = { level = "warn", priority = -1 }
+
+# "No panics in production" family: deny on main path, allowed in tests
+# via crate-level cfg_attr in src/main.rs.
+unwrap_used = "deny"
+panic       = "deny"
+expect_used = "warn"
+
+# Misc discipline
+dbg_macro     = "warn"
+todo          = "warn"
+unimplemented = "warn"
+
+# The `cargo` group is enabled above, but two of its lints can't
+# reasonably be satisfied yet:
+# - multiple_crate_versions fires on the duplicate windows-* crates
+#   pulled in transitively by `whoami`; there is nothing to fix in-crate.
+# - cargo_common_metadata fires on missing README.md; adding a README
+#   is its own follow-up PR.
+multiple_crate_versions = "allow"
+cargo_common_metadata   = "allow"
+
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = true
+
+[profile.dist]
+inherits        = "release"
+lto             = "thin"
+overflow-checks = true
+strip           = true

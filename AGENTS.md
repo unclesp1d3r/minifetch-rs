@@ -5,9 +5,9 @@ A small neofetch-style system info CLI written in Rust. Single binary, currently
 ## Project Snapshot
 
 - **Type**: CLI tool (system info display)
-- **Crates**: `clap` (derive), `sysinfo`, `colored`, `console`, `figlet-rs`, `chrono`, `humantime`, `users`, `indicatif`, `anyhow`
+- **Crates**: `clap` (derive), `sysinfo`, `console`, `figlet-rs`, `chrono`, `humantime`, `whoami`, `indicatif`, `anyhow`
 - **Dev**: `assert_cmd` for integration tests
-- **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`, `just`
+- **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`
 
 ## 1. Core Philosophy
 
@@ -39,13 +39,13 @@ When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`
 | Layer       | Technology                                     | Notes                            |
 | ----------- | ---------------------------------------------- | -------------------------------- |
 | **CLI**     | `clap` (derive)                                | Argument parsing                 |
-| **System**  | `sysinfo`, `users`                             | OS / hardware / user info        |
-| **Output**  | `colored`, `console`, `figlet-rs`, `indicatif` | Terminal formatting and progress |
+| **System**  | `sysinfo`, `whoami`                            | OS / hardware / user info        |
+| **Output**  | `console`, `figlet-rs`, `indicatif`            | Terminal formatting and progress |
 | **Time**    | `chrono`, `humantime`                          | Timestamps and durations         |
 | **Errors**  | `anyhow`                                       | Application-style error handling |
 | **Testing** | `cargo test` + `assert_cmd`                    | Unit + CLI integration           |
 | **CI/CD**   | GitHub Actions                                 | Lint, test, release              |
-| **Tooling** | `cargo`, `clippy`, `rustfmt`                   |                                  |
+| **Tooling** | `cargo`, `clippy`, `rustfmt`, `just`, `mise`   | See `justfile` and `mise.toml`   |
 
 ## 4. Coding Standards and Conventions
 
@@ -59,7 +59,7 @@ When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`
   - **Functions/Methods, Variables**: `snake_case`
 - **Error Handling**: Use `Result<T, E>` with `anyhow::Result` for application errors. No `thiserror` — this project doesn't expose a library API. Never `panic!` on recoverable errors; reserve it for true invariants.
 - **Concurrency**: Synchronous. Do not introduce `tokio` or async without strong justification.
-- **Output**: Use `println!`/`eprintln!` and the `colored`/`console` crates. No `tracing` — this is a one-shot CLI, not a service.
+- **Output**: Use `println!`/`eprintln!` for simple text, `console` for ANSI styling and width-aware measurement, `figlet-rs` for ASCII banners, and `indicatif` for progress bars / byte-size formatting. No `tracing` — this is a one-shot CLI, not a service.
 - **Testing**: Unit tests live in `#[cfg(test)] mod tests` blocks alongside the code. CLI behavior is covered by `assert_cmd` integration tests in `tests/`.
 
 ### Commit Messages
