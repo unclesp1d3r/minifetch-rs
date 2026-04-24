@@ -98,11 +98,13 @@ test:
 test-ci:
     @{{ mise_exec }} cargo nextest run --all-features
 
-# Run documentation tests (nextest does not support doctests). This
-# recipe is NOT included in `check` / `dev` / `ci-check` aggregates
-# because minifetch-rs has zero `///` doctest blocks today -- running
-# it would just be a no-op that compiles docs. Re-add it to the
-# aggregates once the crate starts carrying runnable doc examples.
+# Intentionally NOT part of `check` / `dev` / `ci-check` aggregates:
+# minifetch-rs has zero `///` doctest blocks today, so running
+# `cargo test --doc` from an aggregate would just compile docs as a
+# no-op. Re-add it once the crate starts carrying runnable doc
+# examples.
+
+# Run documentation tests (nextest does not support doctests)
 test-doc:
     @{{ mise_exec }} cargo test --doc
 
@@ -152,11 +154,12 @@ check: fmt-check lint test-ci
 # Development workflow: format, lint, test
 dev: fmt lint test
 
-# Full local CI parity check — mirrors .github/workflows/ci.yml
-# (quality + test + test-cross-platform + coverage + msrv jobs) and
-# adds `audit` + `deny` since the GitHub workflow does not run
-# cargo-audit or cargo-deny yet (both are installed via mise.toml
-# and cheap to run locally before pushing).
+# Mirrors .github/workflows/ci.yml (quality + test + test-cross-platform
+# + coverage + msrv jobs) and adds `audit` + `deny`, which the GitHub
+# workflow does not run yet. Both tools are installed via mise.toml and
+# are cheap enough to run locally before pushing.
+
+# Full local CI parity check (adds audit + deny over GitHub CI)
 ci-check: fmt-check clippy test-ci build-release coverage audit deny
 
 # =============================================================================
