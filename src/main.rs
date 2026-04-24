@@ -187,20 +187,29 @@ fn run() -> Result<()> {
     }
 
     // Network Interfaces and Statistics
+    //
+    // Hide interfaces that have no hardware address (utun*, gif*, stf*,
+    // and similar virtual/tunnel interfaces all report 00:00:00:00:00:00
+    // on macOS; loopback and unused tunnels have the same shape). Real
+    // interfaces are shown regardless of their current Rx/Tx counters --
+    // "0 B Rx, 0 B Tx" on a freshly-booted VM or a minimal container is
+    // a meaningful state, not one worth hiding. The earlier filter
+    // ("activity only") silently dropped every interface on a fresh boot.
     let networks = Networks::new_with_refreshed_list();
     for (interface_name, data) in &networks {
-        // Filter for interfaces with activity
-        if data.total_received() > 0 || data.total_transmitted() > 0 {
-            content_lines.push(InfoLine::plain(
-                format!("Net ({})", sanitize(interface_name)),
-                format!(
-                    "{} (Rx: {}, Tx: {})",
-                    data.mac_address(),
-                    HumanBytes(data.total_received()),
-                    HumanBytes(data.total_transmitted())
-                ),
-            ));
+        let mac = data.mac_address();
+        if mac.0 == [0u8; 6] {
+            continue;
         }
+        content_lines.push(InfoLine::plain(
+            format!("Net ({})", sanitize(interface_name)),
+            format!(
+                "{} (Rx: {}, Tx: {})",
+                mac,
+                HumanBytes(data.total_received()),
+                HumanBytes(data.total_transmitted())
+            ),
+        ));
     }
 
     // Temperatures
