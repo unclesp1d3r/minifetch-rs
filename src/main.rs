@@ -30,10 +30,14 @@ struct Cli;
 fn main() {
     if let Err(e) = run() {
         // A closed downstream pipe (e.g. `minifetch-rs | head -1`) is
-        // normal CLI termination, not an error. Exit cleanly with status 0.
-        if let Some(io_err) = e.downcast_ref::<std::io::Error>()
-            && io_err.kind() == std::io::ErrorKind::BrokenPipe
-        {
+        // normal CLI termination, not an error. Walk the full error
+        // chain so a BrokenPipe buried under a future `.context("...")`
+        // wrapper still exits 0 instead of printing a scary backtrace.
+        let is_broken_pipe = e.chain().any(|src| {
+            src.downcast_ref::<std::io::Error>()
+                .is_some_and(|io| io.kind() == std::io::ErrorKind::BrokenPipe)
+        });
+        if is_broken_pipe {
             std::process::exit(0);
         }
         eprintln!("error: {e:#}");
