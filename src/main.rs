@@ -2,6 +2,16 @@
 // exempt them from the strict "no panics in production" lints while
 // keeping those lints enforced on the rest of the crate.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic, clippy::expect_used))]
+// render_bar and the percentage calculations intentionally cast between
+// u64/usize/f64 when rendering progress bars. Over the narrow ranges
+// involved (0-100 percentages, 0-20 bar cells) none of these casts
+// can lose meaningful precision or data. Allow the family crate-wide
+// so the render code stays readable.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 
 use anyhow::Result;
 use chrono::Local;
@@ -53,6 +63,7 @@ fn render_banner(hostname: &str) -> String {
         .unwrap_or_else(|| hostname.to_string())
 }
 
+#[allow(clippy::too_many_lines)]
 fn run() -> Result<()> {
     // Cli exists only so clap handles `--help` / `--version` for us.
     // The parsed value has no fields, so we don't bind it.
@@ -144,7 +155,7 @@ fn run() -> Result<()> {
     // Disk Utilization
     let disks = Disks::new_with_refreshed_list();
     let mut seen_disks: HashSet<&Path> = HashSet::new();
-    for disk in disks.iter() {
+    for disk in &disks {
         // `HashSet::insert` returns false if the mount point was already
         // present, so a single call covers both the lookup and the
         // insert without any cloning.
@@ -167,7 +178,7 @@ fn run() -> Result<()> {
 
     // Network Interfaces and Statistics
     let networks = Networks::new_with_refreshed_list();
-    for (interface_name, data) in networks.iter() {
+    for (interface_name, data) in &networks {
         // Filter for interfaces with activity
         if data.total_received() > 0 || data.total_transmitted() > 0 {
             content_lines.push(InfoLine::plain(
@@ -185,7 +196,7 @@ fn run() -> Result<()> {
     // Temperatures
     let components = Components::new_with_refreshed_list();
     let mut temp_count = 0;
-    for component in components.iter() {
+    for component in &components {
         if let Some(temp) = component.temperature() {
             // Filter out unrealistic temperatures and limit the number of
             // displayed sensors. The upper bound was widened from 100C to
@@ -249,10 +260,10 @@ fn run() -> Result<()> {
         let label_padding = max_label_width.saturating_sub(measure_text_width(&line.label));
         let value_padding = max_value_width.saturating_sub(line.value_width());
 
-        let value_rendered = match &line.bar {
-            Some(bar) => format!("{} {}", style(&line.value).white(), style(bar).green()),
-            None => line.value.clone(),
-        };
+        let value_rendered = line.bar.as_ref().map_or_else(
+            || line.value.clone(),
+            |bar| format!("{} {}", style(&line.value).white(), style(bar).green()),
+        );
 
         term.write_line(&format!(
             "{} {}{}: {}{}{}",
@@ -325,18 +336,14 @@ impl InfoLine {
     /// the percent and the bar when a bar is present. Measured in terminal
     /// cells so `measure_text_width` is used rather than byte length.
     fn value_width(&self) -> usize {
-        measure_text_width(&self.value)
-            + self
-                .bar
-                .as_ref()
-                .map(|b| 1 + measure_text_width(b))
-                .unwrap_or(0)
+        measure_text_width(&self.value) + self.bar.as_ref().map_or(0, |b| 1 + measure_text_width(b))
     }
 }
 
 /// Result of [`compute_box_layout`]: total box width plus the widest label
 /// and value columns observed across the rows. The print loop pads both
 /// columns to those widths so the box renders rectangularly.
+#[allow(clippy::struct_field_names)]
 struct BoxLayout {
     box_width: usize,
     max_label_width: usize,
@@ -354,7 +361,7 @@ fn compute_box_layout(lines: &[InfoLine]) -> BoxLayout {
         max_value = max_value.max(line.value_width());
     }
     let content_width = max_label + max_value + BOX_OVERHEAD;
-    let user_hostname_width = lines.first().map(InfoLine::value_width).unwrap_or(0);
+    let user_hostname_width = lines.first().map_or(0, InfoLine::value_width);
     let box_width = content_width.max(user_hostname_width + USER_HOST_OVERHEAD);
     BoxLayout {
         box_width,

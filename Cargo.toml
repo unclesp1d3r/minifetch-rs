@@ -52,6 +52,14 @@ dbg_macro     = "warn"
 todo          = "warn"
 unimplemented = "warn"
 
+# `cargo` group lints we can't reasonably satisfy in this project yet.
+# multiple_crate_versions fires on the duplicate windows-* crates
+# pulled in transitively by `whoami`; there is nothing to fix in-crate.
+# cargo_common_metadata fires on missing README.md; adding a README
+# is its own follow-up PR.
+multiple_crate_versions = "allow"
+cargo_common_metadata   = "allow"
+
 [profile.release]
 lto           = "thin"
 codegen-units = 1

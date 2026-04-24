@@ -40,7 +40,10 @@ fn output_contains_expected_sections() -> Result<(), Box<dyn std::error::Error>>
     // on ` OS ` / ` RAM ` with bracketing spaces rather than `OS:` /
     // `RAM:`. The " " boundaries also prevent accidentally matching
     // substrings inside other words ("macOS", "RAM"-in-value, etc.).
-    assert!(stdout.contains(" OS "), "missing OS row in output:\n{stdout}");
+    assert!(
+        stdout.contains(" OS "),
+        "missing OS row in output:\n{stdout}"
+    );
     assert!(
         stdout.contains(" RAM "),
         "missing RAM row in output:\n{stdout}"
