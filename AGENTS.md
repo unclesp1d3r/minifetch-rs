@@ -5,7 +5,7 @@ A small neofetch-style system info CLI written in Rust. Single binary, currently
 ## Project Snapshot
 
 - **Type**: CLI tool (system info display)
-- **Crates**: `clap` (derive), `sysinfo`, `colored`, `console`, `figlet-rs`, `chrono`, `humantime`, `users`, `indicatif`, `anyhow`
+- **Crates**: `clap` (derive), `sysinfo`, `console`, `figlet-rs`, `chrono`, `humantime`, `whoami`, `indicatif`, `anyhow`
 - **Dev**: `assert_cmd` for integration tests
 - **Not used**: tokio/async, web frameworks, databases, `tracing`, `thiserror`, `serde`
 
@@ -39,8 +39,8 @@ When `main.rs` grows beyond ~400 lines, split by feature into modules (`info.rs`
 | Layer       | Technology                                     | Notes                            |
 | ----------- | ---------------------------------------------- | -------------------------------- |
 | **CLI**     | `clap` (derive)                                | Argument parsing                 |
-| **System**  | `sysinfo`, `users`                             | OS / hardware / user info        |
-| **Output**  | `colored`, `console`, `figlet-rs`, `indicatif` | Terminal formatting and progress |
+| **System**  | `sysinfo`, `whoami`                            | OS / hardware / user info        |
+| **Output**  | `console`, `figlet-rs`, `indicatif`            | Terminal formatting and progress |
 | **Time**    | `chrono`, `humantime`                          | Timestamps and durations         |
 | **Errors**  | `anyhow`                                       | Application-style error handling |
 | **Testing** | `cargo test` + `assert_cmd`                    | Unit + CLI integration           |
