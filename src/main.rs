@@ -134,12 +134,18 @@ fn run() -> Result<()> {
     // Memory (RAM and Swap)
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
-    let memory_percentage = (used_memory as f64 / total_memory as f64) * 100.0;
-    content_lines.push(InfoLine::percent(
-        "RAM",
-        memory_percentage,
-        render_bar(memory_percentage as u64, 100, 20),
-    ));
+    if total_memory > 0 {
+        // Guard against division by zero: on an extremely exotic
+        // container/VM sysinfo could report 0 total RAM. Without the
+        // guard the percentage would be NaN/inf and the printed value
+        // would be nonsense.
+        let memory_percentage = (used_memory as f64 / total_memory as f64) * 100.0;
+        content_lines.push(InfoLine::percent(
+            "RAM",
+            memory_percentage,
+            render_bar(memory_percentage as u64, 100, 20),
+        ));
+    }
 
     let total_swap = sys.total_swap();
     let used_swap = sys.used_swap();
