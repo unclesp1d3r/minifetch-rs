@@ -131,6 +131,7 @@ megalinter-reports/
 
 # Files for validating the tooling
 
+
 **/*.local.*
 
 # AI coding assistants (local state, not shared)
@@ -148,4 +149,3 @@ todos/
 **/tessl__*
 .tessl/tiles/
 .tessl/RULES.md
-.vscode/settings.json
