@@ -91,3 +91,17 @@ jobs:
                   files: lcov.info
                   fail_ci_if_error: false
                   token: ${{ secrets.CODECOV_TOKEN }}
+
+    msrv:
+        name: MSRV (1.89)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+            - name: Install Rust 1.89
+              uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable, pinned
+              with:
+                  toolchain: "1.89"
+            - name: Check MSRV compliance
+              # cargo check honors Cargo.toml's rust-version and fails if any
+              # transitive dependency requires a newer Rust than 1.89.
+              run: cargo check --all-features
