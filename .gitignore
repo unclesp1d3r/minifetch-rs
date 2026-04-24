@@ -149,3 +149,6 @@ todos/
 **/tessl__*
 .tessl/tiles/
 .tessl/RULES.md
+
+
+.vscode/settings.json
