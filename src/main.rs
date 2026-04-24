@@ -86,9 +86,18 @@ fn run() -> Result<()> {
     let username = sanitize(&whoami::username().unwrap_or_else(|_| "unknown".to_string()));
     let hostname = sanitize(&System::host_name().unwrap_or_else(|| "N/A".to_string()));
 
-    // Figlet for hostname (graceful fallback handled inside render_banner)
+    // Figlet for hostname (graceful fallback handled inside render_banner).
+    // Short hostnames skip figlet entirely and come back as plain text, so
+    // they need an explicit `.bold()` to look visually weighted next to the
+    // long-hostname figlet output; figlet banners are already multi-line
+    // ASCII art and don't need the extra weight.
     let banner = render_banner(&hostname);
-    term.write_line(&format!("{}", style(banner).cyan()))?;
+    let short_hostname = hostname.chars().count() < FIGLET_MIN_HOSTNAME_LEN;
+    if short_hostname {
+        term.write_line(&format!("{}", style(banner).cyan().bold()))?;
+    } else {
+        term.write_line(&format!("{}", style(banner).cyan()))?;
+    }
 
     let mut content_lines: Vec<InfoLine> = Vec::new();
 
@@ -99,18 +108,22 @@ fn run() -> Result<()> {
         format!("{username}@{hostname}"),
     ));
 
-    // OS and Kernel
+    // OS and Kernel.
+    // All OS-sourced strings go through `sanitize` before display so a
+    // hostile distro, kernel, or version string cannot inject terminal
+    // escape sequences -- same treatment as hostname/username above and
+    // disk/network/component labels further down.
     content_lines.push(InfoLine::plain(
         "OS",
         format!(
             "{} {}",
-            System::name().unwrap_or_else(|| "N/A".to_string()),
-            System::os_version().unwrap_or_else(|| "N/A".to_string())
+            sanitize(&System::name().unwrap_or_else(|| "N/A".to_string())),
+            sanitize(&System::os_version().unwrap_or_else(|| "N/A".to_string()))
         ),
     ));
     content_lines.push(InfoLine::plain(
         "Kernel",
-        System::kernel_version().unwrap_or_else(|| "N/A".to_string()),
+        sanitize(&System::kernel_version().unwrap_or_else(|| "N/A".to_string())),
     ));
 
     // Uptime
@@ -118,9 +131,10 @@ fn run() -> Result<()> {
         humantime::format_duration(std::time::Duration::from_secs(System::uptime())).to_string();
     content_lines.push(InfoLine::plain("Uptime", uptime));
 
-    // Logged-in Users
+    // Logged-in Users. User names can contain anything the OS allows, so
+    // every name goes through `sanitize` before being joined for display.
     let users_list = Users::new_with_refreshed_list();
-    let users: Vec<String> = users_list.iter().map(|u| u.name().to_string()).collect();
+    let users: Vec<String> = users_list.iter().map(|u| sanitize(u.name())).collect();
     if !users.is_empty() {
         content_lines.push(InfoLine::plain("Users", users.join(", ")));
     }
